@@ -1,9 +1,17 @@
+import ddf.minim.*;
+
 PShape[] frames;
+Minim minim;
+
+AudioPlayer soundtrack;
+boolean soundtrackStarted = false;
 int[] DUR_MS = {
-  700, 900, 800, 1500, 1100, 700, 1300, 2500, 1300, 1300, 1300,
-  500, 1600, 1600, 1600, 1300, 1500, 700
+  5000,
+  7000, 9000, 8000, 15000, 11000, 7000, 13000, 25000, 13000, 13000, 13000,
+  5000, 16000, 16000, 16000, 13000, 15000, 7000
 };
 String[] SVG_FILES = {
+  "portada-01.svg",
   "frames-01.svg",
   "frames-02.svg",
   "frames-03.svg",
@@ -29,13 +37,13 @@ int f15CreatureCount = 0;
 int f16CreatureCount = 0;
 
 // --- frames-18 interactivo ---
-final int F18_FRAME_INDEX = 17;
+final int F18_FRAME_INDEX = 18;
 final int F18_SPORE_LIFE_MS = 3000;
 int f18TimeOffset = 0;
 boolean f18HabitatSaved = false;
 boolean f18Dragging = false;
-ArrayList<PVector> f18CorridorPts;
-ArrayList<F18Spore> f18Spores;
+ArrayList<PVector> f18CorridorPts = new ArrayList<PVector>();
+ArrayList<F18Spore> f18Spores = new ArrayList<F18Spore>();
 
 class F18Spore {
   float x, y;
@@ -77,29 +85,50 @@ final int F07_LAYERS = 7;
 
 void setup() {
   size(1440, 900, P2D);
+  minim = new Minim(this);
+  soundtrack = minim.loadFile("audio.mp3");
+  if (soundtrack == null) {
+    println("AVISO: no se pudo cargar audio.mp3 (revisa data/ y la librería Minim).");
+  }
   frames = new PShape[SVG_FILES.length];
   for (int i = 0; i < SVG_FILES.length; i++) {
     frames[i] = loadShape(SVG_FILES[i]);
+    if (frames[i] == null) {
+      println("ERROR: no se pudo cargar \"" + SVG_FILES[i] + "\" (revisa data/ y el SVG).");
+    }
   }
 
-  int n = countSvgLeaves(frames[0]);
-  if (n != 63) {
-    println("frames-01: hojas = " + n + " (esperado 63).");
+  if (frames[0] == null) {
+    println("portada-01: loadShape falló — usa el SVG sin <text> (ejecuta prep_portada.py).");
+  } else if (findShapeById(frames[0], "p01_bg") == null || findShapeById(frames[0], "p01_art") == null) {
+    println("portada-01: faltan grupos p01_bg / p01_art.");
+  }
+
+  if (frames[1] != null) {
+    int n = countSvgLeaves(frames[1]);
+    if (n != 63) {
+      println("frames-01: hojas = " + n + " (esperado 63).");
+    }
   }
 
   f03RevealSlot = buildRevealSlots(F03_NUM, F03_REVEAL_ORDER);
-  int n3 = countSvgLeaves(frames[2]);
-  if (n3 != F03_NUM) {
-    println("frames-03: hojas = " + n3 + " (esperado " + F03_NUM + ").");
+  if (frames[3] != null) {
+    int n3 = countSvgLeaves(frames[3]);
+    if (n3 != F03_NUM) {
+      println("frames-03: hojas = " + n3 + " (esperado " + F03_NUM + ").");
+    }
   }
 
   f04RevealSlot = buildRevealSlots(F04_NUM, F04_REVEAL_ORDER);
-  int n4 = countSvgLeaves(frames[3]);
-  if (n4 != F04_NUM) {
-    println("frames-04: hojas = " + n4 + " (esperado " + F04_NUM + ").");
+  if (frames[4] != null) {
+    int n4 = countSvgLeaves(frames[4]);
+    if (n4 != F04_NUM) {
+      println("frames-04: hojas = " + n4 + " (esperado " + F04_NUM + ").");
+    }
   }
 
-  PShape doc5 = frames[4];
+  if (frames[5] != null) {
+  PShape doc5 = frames[5];
   PShape f05e = findShapeById(doc5, "f05_leaves_early");
   if (f05e != null && f05e.getChildCount() != 7) {
     println("frames-05: f05_leaves_early hijos=" + f05e.getChildCount() + " (esperado 7).");
@@ -113,6 +142,7 @@ void setup() {
       println("frames-05: falta grupo/id \"" + id + "\".");
     }
   }
+  }
 
   String[] need = {
     "f02_bg", "f02_leafA", "f02_leafB",
@@ -120,7 +150,7 @@ void setup() {
     "f02_bugB", "f02_bugB_body", "f02_eyesB"
   };
   for (String id : need) {
-    if (findShapeById(frames[1], id) == null) {
+    if (findShapeById(frames[2], id) == null) {
       println("frames-02: no se encontró el grupo/id \"" + id + "\".");
     }
   }
@@ -132,13 +162,13 @@ void setup() {
     "f08_bug_left_body_tail", "f08_bug_right", "f08_red_overlay", "f08_overlays"
   };
   for (String id : need678) {
-    int fi = id.startsWith("f06") ? 5 : (id.startsWith("f07") ? 6 : 7);
+    int fi = id.startsWith("f06") ? 6 : (id.startsWith("f07") ? 7 : 8);
     if (findShapeById(frames[fi], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
 
-  PShape f08Right = findShapeById(frames[7], "f08_bug_right");
+  PShape f08Right = findShapeById(frames[8], "f08_bug_right");
   if (f08Right == null) {
     println("frames-08: falta f08_bug_right.");
   } else {
@@ -147,13 +177,13 @@ void setup() {
 
   String[] need911 = { "f09_bg", "f09_pieces", "f10_bg", "f10_pieces", "f11_bg" };
   for (String id : need911) {
-    int fi = id.startsWith("f09") ? 8 : (id.startsWith("f10") ? 9 : 10);
+    int fi = id.startsWith("f09") ? 9 : (id.startsWith("f10") ? 10 : 11);
     if (findShapeById(frames[fi], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
-  PShape f09p = findShapeById(frames[8], "f09_pieces");
-  PShape f10p = findShapeById(frames[9], "f10_pieces");
+  PShape f09p = findShapeById(frames[9], "f09_pieces");
+  PShape f10p = findShapeById(frames[10], "f10_pieces");
   if (f09p != null) {
     println("frames-09: piezas=" + f09p.getChildCount());
   }
@@ -168,12 +198,12 @@ void setup() {
     "f13_bug_right_body", "f13_bug_right_legs", "f13_dots"
   };
   for (String id : need1213) {
-    int fi = id.startsWith("f12") ? 11 : 12;
+    int fi = id.startsWith("f12") ? 12 : 13;
     if (findShapeById(frames[fi], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
-  PShape f13d = findShapeById(frames[12], "f13_dots");
+  PShape f13d = findShapeById(frames[13], "f13_dots");
   if (f13d != null) {
     println("frames-13: puntos=" + f13d.getChildCount());
   }
@@ -183,12 +213,12 @@ void setup() {
     "f14_bug_right_body", "f14_bug_right_legs"
   };
   for (String id : need14) {
-    if (findShapeById(frames[13], id) == null) {
+    if (findShapeById(frames[14], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
   f14CreatureCount = 0;
-  while (findShapeById(frames[13], "f14_creature_" + f14CreatureCount) != null) {
+  while (findShapeById(frames[14], "f14_creature_" + f14CreatureCount) != null) {
     f14CreatureCount++;
   }
   println("frames-14: criaturas=" + f14CreatureCount);
@@ -198,12 +228,12 @@ void setup() {
     "f15_bug_right_body", "f15_bug_right_legs"
   };
   for (String id : need15) {
-    if (findShapeById(frames[14], id) == null) {
+    if (findShapeById(frames[15], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
   f15CreatureCount = 0;
-  while (findShapeById(frames[14], "f15_creature_" + f15CreatureCount) != null) {
+  while (findShapeById(frames[15], "f15_creature_" + f15CreatureCount) != null) {
     f15CreatureCount++;
   }
   println("frames-15: criaturas=" + f15CreatureCount);
@@ -212,12 +242,12 @@ void setup() {
     "f16_bg", "f16_leaves", "f16_bug_body", "f16_bug_legs"
   };
   for (String id : need16) {
-    if (findShapeById(frames[15], id) == null) {
+    if (findShapeById(frames[16], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
   f16CreatureCount = 0;
-  while (findShapeById(frames[15], "f16_creature_" + f16CreatureCount) != null) {
+  while (findShapeById(frames[16], "f16_creature_" + f16CreatureCount) != null) {
     f16CreatureCount++;
   }
   println("frames-16: criaturas=" + f16CreatureCount);
@@ -226,7 +256,7 @@ void setup() {
     "f17_bg", "f17_leaf_a", "f17_leaf_b", "f17_bug_body", "f17_bug_legs"
   };
   for (String id : need17) {
-    if (findShapeById(frames[16], id) == null) {
+    if (findShapeById(frames[17], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
@@ -235,13 +265,10 @@ void setup() {
     "f18_bg", "f18_leaf_a", "f18_leaf_b", "f18_bug_body", "f18_bug_legs"
   };
   for (String id : need18) {
-    if (findShapeById(frames[17], id) == null) {
+    if (findShapeById(frames[18], id) == null) {
       println("falta grupo/id \"" + id + "\".");
     }
   }
-
-  f18CorridorPts = new ArrayList<PVector>();
-  f18Spores = new ArrayList<F18Spore>();
 }
 
 int frameStartMs(int frameIndex) {
@@ -250,6 +277,29 @@ int frameStartMs(int frameIndex) {
     s += DUR_MS[i];
   }
   return s;
+}
+
+void updateSoundtrack() {
+  if (soundtrack == null) {
+    return;
+  }
+  if (millis() < frameStartMs(1)) {
+    return;
+  }
+  if (!soundtrackStarted) {
+    soundtrack.play(0);
+    soundtrackStarted = true;
+  }
+}
+
+void stop() {
+  if (soundtrack != null) {
+    soundtrack.close();
+  }
+  if (minim != null) {
+    minim.stop();
+  }
+  super.stop();
 }
 
 int[] buildRevealSlots(int num, int[] order) {
@@ -263,51 +313,86 @@ int[] buildRevealSlots(int num, int[] order) {
 void draw() {
   background(255);
   int t = millis();
+  updateSoundtrack();
 
   if (t < frameStartMs(1)) {
-    drawFrame01(t);
+    drawPortada();
   } else if (t < frameStartMs(2)) {
-    drawFrame02(t - frameStartMs(1));
+    drawFrame01(t - frameStartMs(1));
   } else if (t < frameStartMs(3)) {
-    drawFrame03(t - frameStartMs(2));
+    drawFrame02(t - frameStartMs(2));
   } else if (t < frameStartMs(4)) {
-    drawFrame04(t - frameStartMs(3));
+    drawFrame03(t - frameStartMs(3));
   } else if (t < frameStartMs(5)) {
-    drawFrame05(t - frameStartMs(4));
+    drawFrame04(t - frameStartMs(4));
   } else if (t < frameStartMs(6)) {
-    drawFrame06(t - frameStartMs(5));
+    drawFrame05(t - frameStartMs(5));
   } else if (t < frameStartMs(7)) {
-    drawFrame07(t - frameStartMs(6));
+    drawFrame06(t - frameStartMs(6));
   } else if (t < frameStartMs(8)) {
-    drawFrame08(t - frameStartMs(7));
+    drawFrame07(t - frameStartMs(7));
   } else if (t < frameStartMs(9)) {
-    drawFrame09(t - frameStartMs(8));
+    drawFrame08(t - frameStartMs(8));
   } else if (t < frameStartMs(10)) {
-    drawFrame10(t - frameStartMs(9));
+    drawFrame09(t - frameStartMs(9));
   } else if (t < frameStartMs(11)) {
-    drawFrame11(t - frameStartMs(10));
+    drawFrame10(t - frameStartMs(10));
   } else if (t < frameStartMs(12)) {
-    drawFrame12(t - frameStartMs(11));
+    drawFrame11(t - frameStartMs(11));
   } else if (t < frameStartMs(13)) {
-    drawFrame13(t - frameStartMs(12));
+    drawFrame12(t - frameStartMs(12));
   } else if (t < frameStartMs(14)) {
-    drawFrame14(t - frameStartMs(13));
+    drawFrame13(t - frameStartMs(13));
   } else if (t < frameStartMs(15)) {
-    drawFrame15(t - frameStartMs(14));
+    drawFrame14(t - frameStartMs(14));
   } else if (t < frameStartMs(16)) {
-    drawFrame16(t - frameStartMs(15));
+    drawFrame15(t - frameStartMs(15));
   } else if (t < frameStartMs(17)) {
-    drawFrame17(t - frameStartMs(16));
+    drawFrame16(t - frameStartMs(16));
+  } else if (t < frameStartMs(18)) {
+    drawFrame17(t - frameStartMs(17));
   } else {
     drawFrame18(getFrame18TRel());
   }
 }
 
-void drawFrame02(int tRel) {
-  float u = map(constrain(tRel, 0, DUR_MS[1] - 1), 0, DUR_MS[1], 0, TWO_PI);
+void drawPortada() {
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[1];
+  PShape doc = frames[0];
+  if (doc == null) {
+    background(249, 243, 181);
+    drawPortadaText(sx, sy);
+    return;
+  }
+  drawScaledBg(doc, "p01_bg", sx, sy);
+  PShape art = findShapeById(doc, "p01_art");
+  if (art != null) {
+    drawStaticGroupLeaves(art, sx, sy);
+  } else {
+    drawStaticGroupLeaves(doc, sx, sy);
+  }
+  drawPortadaText(sx, sy);
+}
+
+void drawPortadaText(float sx, float sy) {
+  pushMatrix();
+  scale(sx, sy);
+  fill(255, 230, 243);
+  textAlign(LEFT, BASELINE);
+  textSize(359);
+  text("FLEX", 142, 616);
+  fill(247, 235, 249);
+  textSize(83);
+  text("The world of ", 589, 356);
+  popMatrix();
+}
+
+void drawFrame02(int tRel) {
+  float u = map(constrain(tRel, 0, DUR_MS[2] - 1), 0, DUR_MS[2], 0, TWO_PI);
+  float sx = width / 1440f;
+  float sy = height / 900f;
+  PShape doc = frames[2];
 
   pushMatrix();
   scale(sx, sy);
@@ -521,11 +606,11 @@ void drawBugRevealFull(PShape doc, String side, int tRel, float u,
 }
 
 void drawFrame12(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[11] - 1));
-  float u = map(tRel, 0, DUR_MS[11], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[12] - 1));
+  float u = map(tRel, 0, DUR_MS[12], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[11];
+  PShape doc = frames[12];
 
   drawScaledBg(doc, "f12_bg", sx, sy);
   drawStaticGroupLeaves(findShapeById(doc, "f12_bg_shapes"), sx, sy);
@@ -536,12 +621,12 @@ void drawFrame12(int tRel) {
 }
 
 void drawFrame13(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[12] - 1));
-  float u = map(tRel, 0, DUR_MS[12], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[13] - 1));
+  float u = map(tRel, 0, DUR_MS[13], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[12];
-  int dur = DUR_MS[12];
+  PShape doc = frames[13];
+  int dur = DUR_MS[13];
 
   drawScaledBg(doc, "f13_bg", sx, sy);
   drawStaticGroupLeaves(findShapeById(doc, "f13_bg_layers"), sx, sy);
@@ -569,12 +654,12 @@ void drawFrame13(int tRel) {
 }
 
 void drawFrame14(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[13] - 1));
-  float u = map(tRel, 0, DUR_MS[13], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[14] - 1));
+  float u = map(tRel, 0, DUR_MS[14], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[13];
-  int dur = DUR_MS[13];
+  PShape doc = frames[14];
+  int dur = DUR_MS[14];
 
   drawScaledBg(doc, "f14_bg", sx, sy);
   drawStaticGroupLeaves(findShapeById(doc, "f14_bg_layers"), sx, sy);
@@ -617,12 +702,12 @@ void drawFrame14(int tRel) {
 }
 
 void drawFrame15(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[14] - 1));
-  float u = map(tRel, 0, DUR_MS[14], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[15] - 1));
+  float u = map(tRel, 0, DUR_MS[15], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[14];
-  int dur = DUR_MS[14];
+  PShape doc = frames[15];
+  int dur = DUR_MS[15];
 
   drawScaledBg(doc, "f15_bg", sx, sy);
   drawStaticGroupLeaves(findShapeById(doc, "f15_bg_layers"), sx, sy);
@@ -665,11 +750,11 @@ void drawFrame15(int tRel) {
 }
 
 void drawFrame16(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[15] - 1));
-  float u = map(tRel, 0, DUR_MS[15], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[16] - 1));
+  float u = map(tRel, 0, DUR_MS[16], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[15];
+  PShape doc = frames[16];
 
   drawScaledBg(doc, "f16_bg", sx, sy);
   drawStaticGroupLeaves(findShapeById(doc, "f16_bg_layers"), sx, sy);
@@ -697,11 +782,11 @@ void drawFrame16(int tRel) {
 }
 
 void drawFrame17(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[16] - 1));
-  float u = map(tRel, 0, DUR_MS[16], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[17] - 1));
+  float u = map(tRel, 0, DUR_MS[17], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[16];
+  PShape doc = frames[17];
 
   drawScaledBg(doc, "f17_bg", sx, sy);
 
@@ -829,7 +914,7 @@ void drawFrame18(int tRel) {
   float sy = height / 900f;
   float motion = f18HabitatSaved ? 0.04f : 1f;
   float u = (tRel / 1000f) * (TWO_PI / 7f);
-  PShape doc = frames[17];
+  PShape doc = frames[18];
 
   drawScaledBg(doc, "f18_bg", sx, sy);
 
@@ -867,7 +952,7 @@ void keyPressed() {
 }
 
 void mousePressed() {
-  if (!isFrame18Active()) return;
+  if (!isFrame18Active() || f18CorridorPts == null) return;
   if (f18HitResetButton(mouseX, mouseY)) {
     resetFrame18();
     return;
@@ -878,7 +963,7 @@ void mousePressed() {
 }
 
 void mouseDragged() {
-  if (!isFrame18Active() || !f18Dragging) return;
+  if (!isFrame18Active() || !f18Dragging || f18CorridorPts == null) return;
   PVector last = f18CorridorPts.get(f18CorridorPts.size() - 1);
   if (dist(last.x, last.y, mouseX, mouseY) > 4) {
     f18CorridorPts.add(new PVector(mouseX, mouseY));
@@ -897,11 +982,11 @@ void mouseReleased() {
 }
 
 void drawFrame06(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[5] - 1));
-  float u = map(tRel, 0, DUR_MS[5], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[6] - 1));
+  float u = map(tRel, 0, DUR_MS[6], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[5];
+  PShape doc = frames[6];
 
   drawScaledBg(doc, "f06_bg", sx, sy);
   drawAnimGroup(findShapeById(doc, "f06_back"), u, sx, sy, 720, 420, 7, 4, radians(1.8), 0.0);
@@ -914,12 +999,12 @@ void drawFrame06(int tRel) {
 }
 
 void drawFrame07(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[6] - 1));
-  float u = map(tRel, 0, DUR_MS[6], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[7] - 1));
+  float u = map(tRel, 0, DUR_MS[7], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  float slice = DUR_MS[6] / (float) F07_LAYERS;
-  PShape doc = frames[6];
+  float slice = DUR_MS[7] / (float) F07_LAYERS;
+  PShape doc = frames[7];
 
   drawScaledBg(doc, "f07_bg", sx, sy);
 
@@ -954,17 +1039,17 @@ void drawFrame07(int tRel) {
 }
 
 void drawFrame08(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[7] - 1));
-  float u = map(tRel, 0, DUR_MS[7], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[8] - 1));
+  float u = map(tRel, 0, DUR_MS[8], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[7];
+  PShape doc = frames[8];
 
   drawScaledBg(doc, "f08_bg", sx, sy);
 
   PShape back = findShapeById(doc, "f08_back");
   if (back != null) {
-    float backDur = DUR_MS[7] * 0.42f;
+    float backDur = DUR_MS[8] * 0.42f;
     float slice = backDur / max(1, back.getChildCount());
     drawRevealChildren(back, tRel, slice, sx, sy, 0);
   }
@@ -1006,18 +1091,18 @@ void drawFrame08(int tRel) {
     drawStaticGroupLeaves(findShapeById(doc, "f08_red_overlay"), sx, sy);
   }
 
-  float ovStart = DUR_MS[7] * 0.65f;
+  float ovStart = DUR_MS[8] * 0.65f;
   if (tRel >= ovStart) {
     drawStaticGroupLeaves(findShapeById(doc, "f08_overlays"), sx, sy);
   }
 }
 
 void drawFrame09(int tRel) {
-  drawRedRevealFrame(frames[8], "f09_bg", "f09_pieces", tRel, DUR_MS[8]);
+  drawRedRevealFrame(frames[9], "f09_bg", "f09_pieces", tRel, DUR_MS[9]);
 }
 
 void drawFrame10(int tRel) {
-  drawRedRevealFrame(frames[9], "f10_bg", "f10_pieces", tRel, DUR_MS[9]);
+  drawRedRevealFrame(frames[10], "f10_bg", "f10_pieces", tRel, DUR_MS[10]);
 }
 
 void drawRedRevealFrame(PShape doc, String bgId, String piecesId, int tRel, int durMs) {
@@ -1032,11 +1117,11 @@ void drawRedRevealFrame(PShape doc, String bgId, String piecesId, int tRel, int 
 }
 
 void drawFrame11(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[10] - 1));
+  tRel = constrain(tRel, 0, max(1, DUR_MS[11] - 1));
   float sx = width / 1440f;
   float sy = height / 900f;
-  PShape doc = frames[10];
-  float slice = DUR_MS[10] / (float) (F11_RED + F11_PURPLE);
+  PShape doc = frames[11];
+  float slice = DUR_MS[11] / (float) (F11_RED + F11_PURPLE);
 
   drawScaledBg(doc, "f11_bg", sx, sy);
 
@@ -1075,13 +1160,13 @@ int drawRevealChildren(PShape parent, int tRel, float slice, float sx, float sy,
 }
 
 void drawFrame05(int tRel) {
-  tRel = constrain(tRel, 0, max(1, DUR_MS[4] - 1));
-  float u = map(tRel, 0, DUR_MS[4], 0, TWO_PI);
+  tRel = constrain(tRel, 0, max(1, DUR_MS[5] - 1));
+  float u = map(tRel, 0, DUR_MS[5], 0, TWO_PI);
   float sx = width / 1440f;
   float sy = height / 900f;
-  float slice = DUR_MS[4] / (float) F05_SLOTS;
+  float slice = DUR_MS[5] / (float) F05_SLOTS;
 
-  PShape doc = frames[4];
+  PShape doc = frames[5];
   pushMatrix();
   scale(sx, sy);
   shape(findShapeById(doc, "f05_bg"), 0, 0);
@@ -1136,21 +1221,21 @@ void drawF05WiggleGroup(PShape grp, float u, float sx, float sy,
 }
 
 void drawFrame03(int tRel) {
-  tRel = constrain(tRel, 0, DUR_MS[2] - 1);
-  float sx = width / 1440f;
-  float sy = height / 900f;
-  float slice = DUR_MS[2] / (float) F03_NUM;
-  int[] counter = new int[] { 0 };
-  drawRevealWalk(frames[2], tRel, slice, sx, sy, counter, f03RevealSlot);
-}
-
-void drawFrame04(int tRel) {
   tRel = constrain(tRel, 0, DUR_MS[3] - 1);
   float sx = width / 1440f;
   float sy = height / 900f;
-  float slice = DUR_MS[3] / (float) F04_NUM;
+  float slice = DUR_MS[3] / (float) F03_NUM;
   int[] counter = new int[] { 0 };
-  drawRevealWalk(frames[3], tRel, slice, sx, sy, counter, f04RevealSlot);
+  drawRevealWalk(frames[3], tRel, slice, sx, sy, counter, f03RevealSlot);
+}
+
+void drawFrame04(int tRel) {
+  tRel = constrain(tRel, 0, DUR_MS[4] - 1);
+  float sx = width / 1440f;
+  float sy = height / 900f;
+  float slice = DUR_MS[4] / (float) F04_NUM;
+  int[] counter = new int[] { 0 };
+  drawRevealWalk(frames[4], tRel, slice, sx, sy, counter, f04RevealSlot);
 }
 
 void drawRevealWalk(PShape node, int tRel, float slice, float sx, float sy, int[] counter, int[] revealSlot) {
@@ -1179,14 +1264,16 @@ void drawRevealWalk(PShape node, int tRel, float slice, float sx, float sy, int[
 }
 
 void drawFrame01(int tMs) {
-  float u = map(tMs, 0, DUR_MS[0], 0, TWO_PI);
+  if (frames[1] == null) return;
+  float u = map(tMs, 0, DUR_MS[1], 0, TWO_PI);
   int[] counter = new int[] { 0 };
   float sx = width / 1440f;
   float sy = height / 900f;
-  drawFrame01Walk(frames[0], u, counter, sx, sy);
+  drawFrame01Walk(frames[1], u, counter, sx, sy);
 }
 
 void drawFrame01Walk(PShape node, float u, int[] counter, float sx, float sy) {
+  if (node == null) return;
   if (node.getChildCount() == 0) {
     int i = counter[0]++;
     pushMatrix();
@@ -1208,6 +1295,7 @@ void drawFrame01Walk(PShape node, float u, int[] counter, float sx, float sy) {
 }
 
 int countSvgLeaves(PShape node) {
+  if (node == null) return 0;
   if (node.getChildCount() == 0) {
     return 1;
   }
